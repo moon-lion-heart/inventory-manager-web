@@ -1,0 +1,138 @@
+name: CI/CD Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "backend/**"
+
+jobs:
+  frontend:
+    if: contains(github.event.head_commit.message, '[skip frontend]') == false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build project
+        run: npm run build
+
+      - name: Deploy to S3
+        uses: aws-actions/s3-sync@v1
+        with:
+          bucket: ${{ secrets.S3_BUCKET_NAME }}
+          region: ${{ secrets.AWS_REGION }}
+          source: build
+          dest: /
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  backend-layer:
+    if: contains(join(github.event.commits.*.modified), 'backend/layer/common/python')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - run: pip install -r requirements.txt
+      - run: pytest layer
+      - name: Zip layer
+        run: |
+          cd layer/common
+          zip -r ../../layer.zip python
+      - name: Publish Lambda Layer
+        id: publish_layer
+        run: |
+          LAYER_ARN=$(aws lambda publish-layer-version \
+            --layer-name InventoryManagementCommonLayer \
+            --zip-file fileb://layer.zip \
+            --compatible-runtimes python3.13 \
+            --region ${{ secrets.AWS_REGION }} \
+            --query LayerVersionArn --output text)
+          echo "layer_arn=$LAYER_ARN" >> $GITHUB_OUTPUT
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    outputs:
+      layer_arn: ${{ steps.publish_layer.outputs.layer_arn }}
+
+  backend-functions:
+    needs: [backend-layer]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        function:
+          - components-crud
+          - organization-id-get
+          - user-register
+    defaults:
+      run:
+        working-directory: backend
+    # lambda関数コード or レイヤーディレクトリの変更時
+    if:
+      contains(join(github.event.commits.*.modified), format('backend/{0}', matrix.function))
+      || contains(join(github.event.commits.*.modified), 'backend/layer/common/python')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - run: pip install -r requirements.txt
+      - name: Run tests
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/layer/common/python
+          pytest ${{ matrix.function }}
+      - name: Zip lambda function
+        run: |
+          cd ${{ matrix.function }}
+          zip -r ../${{ matrix.function }}.zip .
+      - name: Update Lambda function
+        run: |
+          FUNC_NAME=${{ matrix.function }}
+          LAYER_ARN=${{ needs.backend-layer.outputs.layer_arn }}
+
+          if [[ -n "$LAYER_ARN" ]]; then
+            aws lambda update-function-configuration \
+              --function-name $FUNC_NAME \
+              --layers $LAYER_ARN \
+              --region ${{ secrets.AWS_REGION }}
+          fi
+
+          FUNCTION_UPDATED=false
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
+           | grep -q "^backend/${FUNC_NAME}/"; then
+            FUNCTION_UPDATED=true
+          fi
+
+          if [[ "$FUNCTION_UPDATED" == "true" ]]; then
+            aws lambda update-function-code \
+              --function-name $FUNC_NAME \
+              --zip-file fileb://backend/${FUNC_NAME}.zip \
+              --region ${{ secrets.AWS_REGION }}
+          fi
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
