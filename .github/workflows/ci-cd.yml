@@ -93,6 +93,8 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Check if function changed
         id: check_changed
         run: |
