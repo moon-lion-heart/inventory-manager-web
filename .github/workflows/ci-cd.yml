@@ -61,6 +61,7 @@ jobs:
       - name: Zip layer
         run: |
           cd layer/common
+          rm -rf python/__pycache__ python/test*.py
           zip -r ../../layer.zip python -x "**/__pycache__/*" -x "**/test*.py"
       - name: Publish Lambda Layer
         id: publish_layer
@@ -130,7 +131,8 @@ jobs:
       - name: Zip lambda function
         run: |
           cd ${{ matrix.function }}
-          zip -r ../${{ matrix.function }}.zip . -x "**/__pycache__/*" -x "test*.py"
+          rm -rf __pycache__ test*.py
+          zip -r ../${{ matrix.function }}.zip .
           cd ..
       - name: Update Lambda function
         run: |
