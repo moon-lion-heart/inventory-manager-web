@@ -80,6 +80,7 @@ jobs:
 
   backend-functions:
     needs: [backend-layer]
+    if: always() # backend-layer が skipped でも実行されるようにする
     runs-on: ubuntu-latest
     strategy:
       matrix:
