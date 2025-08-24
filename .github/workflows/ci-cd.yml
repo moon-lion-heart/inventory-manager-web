@@ -151,7 +151,7 @@ jobs:
           if [[ "$FUNCTION_UPDATED" == "true" ]]; then
             aws lambda update-function-code \
               --function-name $FUNC_NAME \
-              --zip-file fileb://backend/${FUNC_NAME}.zip \
+              --zip-file fileb://./${FUNC_NAME}.zip \
               --region ${{ secrets.AWS_REGION }}
           fi
         env:
