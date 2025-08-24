@@ -129,7 +129,9 @@ jobs:
           pytest ${{ matrix.function }}
       - name: Zip lambda function
         run: |
-          zip -r ${{ matrix.function }}.zip ${{ matrix.function }}
+          cd ${{ matrix.function }}
+          zip -r ../${{ matrix.function }}.zip .
+          cd ..
       - name: Update Lambda function
         run: |
           FUNC_NAME=${{ matrix.function }}
