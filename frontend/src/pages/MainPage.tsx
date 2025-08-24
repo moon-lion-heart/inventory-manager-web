@@ -31,7 +31,6 @@ const MainPage: React.FC = () => {
   });
 
   const {
-    allItems,
     filteredItems,
     loading,
     error,

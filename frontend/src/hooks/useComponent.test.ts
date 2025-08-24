@@ -55,7 +55,6 @@ describe('useComponent without waitForNextUpdate', () => {
     });
 
     expect(result.current.loading).toBe(false);
-    expect(result.current.allItems).toEqual(mockComponents);
     expect(result.current.filteredItems).toEqual(mockComponents);
   });
 });

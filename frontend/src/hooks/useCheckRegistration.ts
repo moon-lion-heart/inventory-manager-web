@@ -40,6 +40,8 @@ export function useCheckRegistration({ authStatus, userId }: CheckRegistrationPa
     }
 
     checkRegistration();
+    // 依存を入れると無限ループや意図しない再実行になるので無視
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, userId]);
 
   return loading;
