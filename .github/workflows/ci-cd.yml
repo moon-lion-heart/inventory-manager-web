@@ -90,12 +90,19 @@ jobs:
     defaults:
       run:
         working-directory: backend
-    # lambda関数コード or レイヤーディレクトリの変更時
-    if:
-      contains(join(github.event.commits.*.modified), format('backend/{0}', matrix.function))
-      || contains(join(github.event.commits.*.modified), 'backend/layer/common/python')
     steps:
       - uses: actions/checkout@v4
+      - name: Check if function changed
+        id: check_changed
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^backend/${{ matrix.function }}/"; then
+            echo "Changes detected, continuing job."
+          elif git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^backend/layer/common/python"; then
+            echo "Layer changes detected, continuing job."
+          else
+            echo "No changes detected for ${{ matrix.function }}. Skipping job."
+            exit 78  # neutral status
+          fi
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
