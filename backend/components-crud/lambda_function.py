@@ -16,8 +16,6 @@ SK_SUFFIX = os.environ['SK_SUFFIX']
 SK_DELIMITER = os.environ['SK_DELIMITER']
 FIELD_TYPES = json.loads(os.environ['FIELD_TYPES'])
 
-
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 

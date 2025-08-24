@@ -44,7 +44,6 @@ def lambda_handler(event, context):
         return {
             'statusCode': STATUS_CODE_UNAUTHORIZED,
         }
-    
 
     try:
         request_body = json.loads(event['body'])
