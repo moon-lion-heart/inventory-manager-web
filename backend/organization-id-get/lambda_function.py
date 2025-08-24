@@ -14,7 +14,7 @@ TABLE1_FIELD_TYPES = json.loads(os.environ['TABLE1_FIELD_TYPES'])
 TABLE2_NAME = os.environ['TABLE2_NAME']
 TABLE2_PK_NAME = os.environ['TABLE2_PK_NAME']
 TABLE2_FIELD_TYPES = json.loads(os.environ['TABLE2_FIELD_TYPES'])
- 
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
