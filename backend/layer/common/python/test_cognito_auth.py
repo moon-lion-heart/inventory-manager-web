@@ -40,4 +40,3 @@ def test_jwt_decode_expired_signature(mock_jwt_decode, mock_get_jwks, sample_eve
     assert result is False
     assert auth.get_claims() is None
 
-# 他の例外パターンも同様にテスト可能です
