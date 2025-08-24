@@ -11,7 +11,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { ActionMode, FilterState } from '../pages/MainPage';
+import { ActionMode } from '../pages/MainPage';
 import InventoryFilter, { InventoryFilterProps } from '../features/Inventory/InventoryFilter';
 import { useAuth } from '../context/AuthContext';
 import { useOrganization } from '../context/OrganizationContext';

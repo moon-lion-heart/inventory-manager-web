@@ -34,15 +34,15 @@ jobs:
         run: npm run build
 
       - name: Deploy to S3
-        uses: aws-actions/s3-sync@v1
+        uses: jakejarvis/s3-sync-action@master
         with:
-          bucket: ${{ secrets.S3_BUCKET_NAME }}
-          region: ${{ secrets.AWS_REGION }}
-          source: build
-          dest: /
+          args: --acl public-read --follow-symlinks --delete
         env:
+          AWS_S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          SOURCE_DIR: build
 
   backend-layer:
     if: contains(join(github.event.commits.*.modified), 'backend/layer/common/python')
