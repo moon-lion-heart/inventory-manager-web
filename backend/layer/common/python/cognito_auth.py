@@ -11,16 +11,13 @@ class CognitoAuthenticator:
         self.user_pool_id = user_pool_id
         self.app_client_id = app_client_id
 
-
     def get_claims(self):
         return self.claims
     
-
     def get_cognito_jwks(self):
         url = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}/.well-known/jwks.json"
         with urllib.request.urlopen(url) as response:
             return json.loads(response.read())
-
 
     def jwt_decode(self, event):
         jwks = self.get_cognito_jwks()
