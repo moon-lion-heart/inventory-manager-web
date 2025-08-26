@@ -45,13 +45,20 @@ jobs:
           SOURCE_DIR: frontend/build
 
   backend-layer:
-    if: contains(join(github.event.commits.*.modified), 'backend/layer/common/python')
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+      - name: Check if layer changed
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -q "^backend/layer/common/python"; then
+            echo "Layer changed, continue"
+          else
+            echo "No changes detected, skipping job"
+            exit 78
+          fi
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
