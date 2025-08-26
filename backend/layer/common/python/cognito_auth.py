@@ -47,4 +47,3 @@ class CognitoAuthenticator:
         
         return decode_success
     
-    

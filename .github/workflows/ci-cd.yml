@@ -105,6 +105,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+      - name: Debug layer ARN
+        run: echo "LAYER_ARN=${{ needs.backend-layer.outputs.layer_arn }}"
       - name: Check if function changed
         id: check_changed
         run: |
