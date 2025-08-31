@@ -46,4 +46,3 @@ class CognitoAuthenticator:
             print(f"その他のJWTエラー: {str(e)}")
         
         return decode_success
-    
