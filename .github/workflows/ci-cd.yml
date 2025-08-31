@@ -81,6 +81,7 @@ jobs:
             --compatible-runtimes python3.13 \
             --region ${{ secrets.AWS_REGION }} \
             --query LayerVersionArn --output text)
+          echo "LAYER_ARN=$LAYER_ARN"   # まず出力を確認
           echo "layer_arn=$LAYER_ARN" >> $GITHUB_OUTPUT
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
