@@ -70,9 +70,8 @@ jobs:
       - run: pip install -r requirements.txt -t layer/common/python
       - name: Run tests
         run: |
-          cd layer/common/python
-          pytest
-          cd ../../../
+          pip install -r requirements.txt
+          pytest layer/common/python
       - name: Zip layer
         run: |
           cd layer/common
