@@ -68,7 +68,10 @@ jobs:
         with:
           python-version: 3.13
       - run: pip install -r requirements.txt -t layer/common/python
-      - run: pytest layer
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest layer
       - name: Zip layer
         run: |
           cd layer/common
