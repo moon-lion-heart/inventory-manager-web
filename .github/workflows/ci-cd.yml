@@ -93,9 +93,9 @@ jobs:
           echo "Job output test: ${{ steps.publish_layer.outputs.layer_arn }}"
 
   backend-functions:
-    needs: [backend-layer]
     if: always() # backend-layer が skipped でも実行されるようにする
     runs-on: ubuntu-latest
+    needs: backend-layer
     strategy:
       matrix:
         function:
