@@ -86,6 +86,9 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Debug job output
+        run: |
+          echo "Job output test: ${{ steps.publish_layer.outputs.layer_arn }}"
     outputs:
       layer_arn: ${{ steps.publish_layer.outputs.layer_arn }}
 
