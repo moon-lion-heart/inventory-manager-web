@@ -111,6 +111,8 @@ jobs:
           fetch-depth: 2
       - name: Debug layer ARN
         run: echo "LAYER_ARN=${{ needs.backend-layer.outputs.layer_arn }}"
+      - name: Dump needs object
+        run: echo '${{ toJson(needs) }}'
       - name: Check if function changed
         id: check_changed
         run: |
