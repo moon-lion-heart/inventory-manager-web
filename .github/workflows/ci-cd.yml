@@ -49,6 +49,8 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    outputs:
+      layer_arn: ${{ steps.publish_layer.outputs.layer_arn }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,8 +91,6 @@ jobs:
       - name: Debug job output
         run: |
           echo "Job output test: ${{ steps.publish_layer.outputs.layer_arn }}"
-    outputs:
-      layer_arn: ${{ steps.publish_layer.outputs.layer_arn }}
 
   backend-functions:
     needs: [backend-layer]
