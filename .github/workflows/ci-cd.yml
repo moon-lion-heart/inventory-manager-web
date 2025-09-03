@@ -17,7 +17,6 @@ jobs:
       REACT_APP_AWS_COGNITO_REGION: ${{ secrets.REACT_APP_AWS_COGNITO_REGION }}
       REACT_APP_AWS_USER_POOLS_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_ID }}
       REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID }}
-      REACT_APP_API_NAME: ${{ secrets.REACT_APP_API_NAME }}
       REACT_APP_COMPONENT_LAMBDA_URL: ${{ secrets.REACT_APP_COMPONENT_LAMBDA_URL }}
       REACT_APP_ORGANIZATION_LAMBDA_URL: ${{ secrets.REACT_APP_ORGANIZATION_LAMBDA_URL }}
       REACT_APP_USER_LAMBDA_URL: ${{ secrets.REACT_APP_USER_LAMBDA_URL }}
@@ -65,30 +64,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # 全履歴を取得
+
       - name: Check if layer changed
+        id: check
         run: |
           if git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -q "^backend/layer/common/python"; then
-            echo "Layer changed, continue"
+            echo "changed=true" >> $GITHUB_OUTPUT
           else
-            echo "No changes detected, skipping job"
-            exit 78
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
+
       - name: Setup Python
+        if: steps.check.outputs.changed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: 3.13
+
       - name: Run tests
+        if: steps.check.outputs.changed == 'true'
         run: |
           pip install -r requirements.txt
           pytest layer/common/python
       - run: pip install -r requirements.txt -t layer/common/python
       - name: Zip layer
+        if: steps.check.outputs.changed == 'true'
         run: |
           cd layer/common
           rm -rf python/__pycache__ python/test*.py
           zip -r ../../layer.zip python -x "**/__pycache__/*" -x "**/test*.py"
+
       - name: Publish Lambda Layer
         id: publish_layer
+        if: steps.check.outputs.changed == 'true'
         run: |
           FULL_ARN=$(aws lambda publish-layer-version \
             --layer-name InventoryManagementCommonLayer \
@@ -123,6 +130,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
+
       - name: Check if function changed
         id: check_changed
         run: |
@@ -146,21 +154,25 @@ jobs:
             echo "No changes detected for ${{ matrix.function }}. Skipping job."
             exit 78  # neutral status
           fi
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: 3.13
       - run: pip install -r requirements.txt
+
       - name: Run tests
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)/layer/common/python
           pytest ${{ matrix.function }}
+
       - name: Zip lambda function
         run: |
           cd ${{ matrix.function }}
           rm -rf __pycache__ test*.py
           zip -r ../${{ matrix.function }}.zip .
           cd ..
+
       - name: Update Lambda function
         run: |
           FUNC_NAME=${{ matrix.function }}
