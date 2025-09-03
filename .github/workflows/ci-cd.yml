@@ -12,15 +12,6 @@ jobs:
   frontend:
     if: contains(github.event.head_commit.message, '[skip frontend]') == false
     runs-on: ubuntu-latest
-    env:
-      REACT_APP_AWS_PROJECT_REGION: ${{ secrets.REACT_APP_AWS_PROJECT_REGION }}
-      REACT_APP_AWS_COGNITO_REGION: ${{ secrets.REACT_APP_AWS_COGNITO_REGION }}
-      REACT_APP_AWS_USER_POOLS_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_ID }}
-      REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID }}
-      REACT_APP_COMPONENT_LAMBDA_URL: ${{ secrets.REACT_APP_COMPONENT_LAMBDA_URL }}
-      REACT_APP_ORGANIZATION_LAMBDA_URL: ${{ secrets.REACT_APP_ORGANIZATION_LAMBDA_URL }}
-      REACT_APP_USER_LAMBDA_URL: ${{ secrets.REACT_APP_USER_LAMBDA_URL }}
-      REACT_APP_API_REGION: ${{ secrets.REACT_APP_API_REGION }}
     defaults:
       run:
         working-directory: frontend
@@ -41,6 +32,15 @@ jobs:
 
       - name: Build project
         run: npm run build
+        env:
+          REACT_APP_AWS_PROJECT_REGION: ${{ secrets.REACT_APP_AWS_PROJECT_REGION }}
+          REACT_APP_AWS_COGNITO_REGION: ${{ secrets.REACT_APP_AWS_COGNITO_REGION }}
+          REACT_APP_AWS_USER_POOLS_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_ID }}
+          REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID }}
+          REACT_APP_COMPONENT_LAMBDA_URL: ${{ secrets.REACT_APP_COMPONENT_LAMBDA_URL }}
+          REACT_APP_ORGANIZATION_LAMBDA_URL: ${{ secrets.REACT_APP_ORGANIZATION_LAMBDA_URL }}
+          REACT_APP_USER_LAMBDA_URL: ${{ secrets.REACT_APP_USER_LAMBDA_URL }}
+          REACT_APP_API_REGION: ${{ secrets.REACT_APP_API_REGION }}
 
       - name: Deploy to S3
         uses: jakejarvis/s3-sync-action@master
