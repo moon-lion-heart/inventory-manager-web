@@ -30,6 +30,10 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Debug env
+        run: |
+          echo "ORG_LAMBDA_URL=${REACT_APP_ORGANIZATION_LAMBDA_URL}"
+
       - name: Build project
         run: npm run build
         env:
@@ -132,7 +136,7 @@ jobs:
           fetch-depth: 2
 
       - name: Check if function changed
-        id: check_changed
+        id: check
         run: |
           # 直前のコミット SHA を取得
           BEFORE=$(git rev-parse HEAD^ 2>/dev/null || echo "")
@@ -147,26 +151,29 @@ jobs:
 
           # 関数ディレクトリかレイヤーの変更があれば続行
           if echo "$DIFF" | grep -q "^backend/${{ matrix.function }}/"; then
-            echo "Changes detected, continuing job."
+            echo "changed=true" >> $GITHUB_OUTPUT
           elif echo "$DIFF" | grep -q "^backend/layer/common/python"; then
-            echo "Layer changes detected, continuing job."
+            echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "No changes detected for ${{ matrix.function }}. Skipping job."
-            exit 78  # neutral status
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Setup Python
+        if: steps.check.outputs.changed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: 3.13
       - run: pip install -r requirements.txt
 
       - name: Run tests
+        if: steps.check.outputs.changed == 'true'
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)/layer/common/python
           pytest ${{ matrix.function }}
 
       - name: Zip lambda function
+        if: steps.check.outputs.changed == 'true'
         run: |
           cd ${{ matrix.function }}
           rm -rf __pycache__ test*.py
@@ -174,6 +181,7 @@ jobs:
           cd ..
 
       - name: Update Lambda function
+        if: steps.check.outputs.changed == 'true'
         run: |
           FUNC_NAME=${{ matrix.function }}
 
