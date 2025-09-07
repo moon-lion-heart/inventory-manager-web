@@ -1,0 +1,218 @@
+name: CI/CD Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "backend/**"
+
+jobs:
+  frontend:
+    if: contains(github.event.head_commit.message, '[skip frontend]') == false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Debug env
+        run: |
+          echo "ORG_LAMBDA_URL=${REACT_APP_ORGANIZATION_LAMBDA_URL}"
+
+      - name: Build project
+        run: npm run build
+        env:
+          REACT_APP_AWS_PROJECT_REGION: ${{ secrets.REACT_APP_AWS_PROJECT_REGION }}
+          REACT_APP_AWS_COGNITO_REGION: ${{ secrets.REACT_APP_AWS_COGNITO_REGION }}
+          REACT_APP_AWS_USER_POOLS_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_ID }}
+          REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID: ${{ secrets.REACT_APP_AWS_USER_POOLS_WEB_CLIENT_ID }}
+          REACT_APP_COMPONENT_LAMBDA_URL: ${{ secrets.REACT_APP_COMPONENT_LAMBDA_URL }}
+          REACT_APP_ORGANIZATION_LAMBDA_URL: ${{ secrets.REACT_APP_ORGANIZATION_LAMBDA_URL }}
+          REACT_APP_USER_LAMBDA_URL: ${{ secrets.REACT_APP_USER_LAMBDA_URL }}
+          REACT_APP_API_REGION: ${{ secrets.REACT_APP_API_REGION }}
+
+      - name: Copy 404.html from public
+        run: |
+          cp public/404.html build/
+
+      - name: Deploy to S3
+        uses: jakejarvis/s3-sync-action@master
+        with:
+          args: --follow-symlinks --delete
+        env:
+          AWS_S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          SOURCE_DIR: frontend/build
+
+  backend-layer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    outputs:
+      partial_arn: ${{ steps.publish_layer.outputs.partial_arn }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 全履歴を取得
+
+      - name: Check if layer changed
+        id: check
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -q "^backend/layer/common/python"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+
+      - name: Run tests
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          pip install -r requirements.txt
+          pytest layer/common/python
+      - run: pip install -r requirements.txt -t layer/common/python
+      - name: Zip layer
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          cd layer/common
+          rm -rf python/__pycache__ python/test*.py
+          zip -r ../../layer.zip python -x "**/__pycache__/*" -x "**/test*.py"
+
+      - name: Publish Lambda Layer
+        id: publish_layer
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          FULL_ARN=$(aws lambda publish-layer-version \
+            --layer-name InventoryManagementCommonLayer \
+            --zip-file fileb://layer.zip \
+            --compatible-runtimes python3.13 \
+            --region ${{ secrets.AWS_REGION }} \
+            --query LayerVersionArn --output text)
+
+            echo "FULL_ARN=$FULL_ARN"
+
+          # リージョンより後ろを抽出 (例: "123456789012:layer/InventoryManagementCommonLayer:3")
+          PARTIAL_ARN=$(echo "$FULL_ARN" | cut -d':' -f5-)
+          echo "partial_arn=$PARTIAL_ARN" >> $GITHUB_OUTPUT
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  backend-functions:
+    needs: backend-layer
+    if: always() # backend-layer が skipped でも実行されるようにする
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        function:
+          - components-crud
+          - organization-id-get
+          - user-register
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if function changed
+        id: check
+        run: |
+          # 直前のコミット SHA を取得
+          BEFORE=$(git rev-parse HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$BEFORE" ]; then
+            # 直前コミットと比較して変更を確認
+            DIFF=$(git diff --name-only $BEFORE HEAD)
+          else
+            # 初回コミットの場合は全ファイルを対象
+            DIFF=$(git ls-files)
+          fi
+
+          # 関数ディレクトリかレイヤーの変更があれば続行
+          if echo "$DIFF" | grep -q "^backend/${{ matrix.function }}/"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          elif echo "$DIFF" | grep -q "^backend/layer/common/python"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes detected for ${{ matrix.function }}. Skipping job."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - run: pip install -r requirements.txt
+
+      - name: Run tests
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/layer/common/python
+          pytest ${{ matrix.function }}
+
+      - name: Zip lambda function
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          cd ${{ matrix.function }}
+          rm -rf __pycache__ test*.py
+          zip -r ../${{ matrix.function }}.zip .
+          cd ..
+
+      - name: Update Lambda function
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          FUNC_NAME=${{ matrix.function }}
+
+          REGION=${{ secrets.AWS_REGION }}
+          PARTIAL=${{ needs.backend-layer.outputs.partial_arn }}
+          LAYER_ARN="arn:aws:lambda:${REGION}:${PARTIAL}"
+          echo "Reconstructed ARN: $LAYER_ARN"
+
+          if [[ -n "$LAYER_ARN" ]]; then
+            aws lambda update-function-configuration \
+              --function-name $FUNC_NAME \
+              --layers $LAYER_ARN \
+              --region ${{ secrets.AWS_REGION }}
+          fi
+
+          FUNCTION_UPDATED=false
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} \
+           | grep -q "^backend/${FUNC_NAME}/"; then
+            FUNCTION_UPDATED=true
+          fi
+
+          if [[ "$FUNCTION_UPDATED" == "true" ]]; then
+            aws lambda update-function-code \
+              --function-name $FUNC_NAME \
+              --zip-file fileb://./${FUNC_NAME}.zip \
+              --region ${{ secrets.AWS_REGION }}
+          fi
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

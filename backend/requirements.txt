@@ -1,0 +1,4 @@
+pytest
+python-jose
+boto3
+tzdata
